@@ -1,8 +1,7 @@
-import { Request, Response } from "express";
 import Auditee from "../models/Auditee";
 import Perusahaan from "../models/Perusahaan";
 
-export const createAuditee = async (req: Request, res: Response) => {
+export const createAuditee = async (req: any, res: any) => {
   try {
     const auditee = new Auditee(req.body);
     await auditee.save();
@@ -13,7 +12,7 @@ export const createAuditee = async (req: Request, res: Response) => {
 };
 
 
-export const getAuditee = async (req:Request, res:Response) => {
+export const getAuditee = async (req:any, res:any) => {
   try {
     const userId = req.user?._id || req.user?.id;
     // console.log(userId);
@@ -61,7 +60,7 @@ export const getAuditeeByPerusahaan = async (req, res) => {
 };
 
 // GET /api/auditee/by-auditor/:auditorId
-export const getAuditeeByAuditor = async (req: Request, res: Response) => {
+export const getAuditeeByAuditor = async (req: any, res: any) => {
   try {
     const { auditorId } = req.params;
     if (!auditorId) {
@@ -86,7 +85,7 @@ export const getAuditeeByAuditor = async (req: Request, res: Response) => {
 };
 
 // PUT /api/auditee/:id
-export const updateAuditee = async (req: Request, res: Response) => {
+export const updateAuditee = async (req: any, res: any) => {
   try {
     const auditee = await Auditee.findByIdAndUpdate(
       req.params.id,
@@ -102,7 +101,7 @@ export const updateAuditee = async (req: Request, res: Response) => {
   }
 };
 // DELETE /api/auditee/:id
-export const deleteAuditee = async (req: Request, res: Response) => {
+export const deleteAuditee = async (req: any, res: any) => {
   try {
     const auditee = await Auditee.findByIdAndDelete(req.params.id);
     if (!auditee) {
