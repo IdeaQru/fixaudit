@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const kriteriaController_1 = require("../controllers/kriteriaController");
+const router = (0, express_1.Router)();
+router.post("/", kriteriaController_1.createKriteria);
+router.get("/", kriteriaController_1.getKriteria);
+router.delete("/:id", kriteriaController_1.deleteKriteria);
+router.put("/:id", kriteriaController_1.updateKriteria);
+exports.default = router;

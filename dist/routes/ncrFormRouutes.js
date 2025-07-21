@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const ncrFormController_1 = require("../controllers/ncrFormController");
+const router = (0, express_1.Router)();
+router.post("/", ncrFormController_1.createNcrForm);
+router.get("/", ncrFormController_1.getNcrForms);
+router.get("/:userId", ncrFormController_1.getNcrFormByUser);
+router.put("/:id", ncrFormController_1.updateNcrForm);
+exports.default = router;
