@@ -114,6 +114,7 @@ export const getPrequalificationById = async (req: Request, res: Response) => {
 export const getPrequalificationByAuditee = async (req:Request, res:Response) => {
   try {
     const { auditeeId, perusahaanId, auditorId } = req.query;
+    
 
     if (!auditeeId) {
       return res.status(400).json({ error: 'auditeeId is required' });
