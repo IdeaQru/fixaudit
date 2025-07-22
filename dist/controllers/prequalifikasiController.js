@@ -10,28 +10,52 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const createPrequalification = async (req, res) => {
     try {
         const { Auditee, ID_Perusahaan, ID_Auditor, Jawaban, Status, Penanggung_Jawab, Tanggal_Pengisian } = req.body;
-        // Gunakan findOneAndUpdate dengan upsert untuk create atau update sekaligus
-        const prequal = await Prequalifikasi_1.default.findOneAndUpdate({
+        const filter = {
             Auditee: new mongoose_1.default.Types.ObjectId(Auditee),
             ID_Perusahaan: new mongoose_1.default.Types.ObjectId(ID_Perusahaan),
             ID_Auditor: new mongoose_1.default.Types.ObjectId(ID_Auditor)
-        }, {
-            $set: {
+        };
+        // Cek apakah dokumen sudah ada
+        const existingPrequal = await Prequalifikasi_1.default.findOne(filter);
+        if (!existingPrequal) {
+            // Buat baru jika belum ada
+            const prequal = new Prequalifikasi_1.default({
                 Auditee,
                 ID_Perusahaan,
                 ID_Auditor,
                 Penanggung_Jawab,
+                Jawaban: Array.isArray(Jawaban) ? Jawaban : [Jawaban],
                 Status: Status || 'Draft',
-                Tanggal_Pengisian: Tanggal_Pengisian || new Date(),
-                // Langsung replace seluruh array Jawaban dengan data baru
-                Jawaban: Array.isArray(Jawaban) ? Jawaban : [Jawaban]
+                Tanggal_Pengisian: Tanggal_Pengisian || new Date()
+            });
+            await prequal.save();
+            return res.status(201).json(prequal);
+        }
+        else {
+            // Update hanya jawaban menggunakan MongoDB aggregation
+            const jawabanArr = Array.isArray(Jawaban) ? Jawaban : [Jawaban];
+            for (const jwb of jawabanArr) {
+                const kriteria = jwb.Kriteria || jwb.Kode;
+                // Update jika kriteria sudah ada, atau add jika belum ada
+                await Prequalifikasi_1.default.updateOne({
+                    ...filter,
+                    "Jawaban.Kriteria": kriteria
+                }, {
+                    $set: { "Jawaban.$": jwb }
+                });
+                // Jika tidak ada yang terupdate, berarti kriteria belum ada, jadi add
+                const updated = await Prequalifikasi_1.default.findOne({
+                    ...filter,
+                    "Jawaban.Kriteria": kriteria
+                });
+                if (!updated) {
+                    await Prequalifikasi_1.default.updateOne(filter, { $push: { Jawaban: jwb } });
+                }
             }
-        }, {
-            new: true, // Return updated document
-            upsert: true, // Create if not exists
-            runValidators: true // Run schema validations
-        });
-        res.status(201).json(prequal);
+            // Ambil data terbaru untuk response
+            const updatedPrequal = await Prequalifikasi_1.default.findOne(filter);
+            return res.status(201).json(updatedPrequal);
+        }
     }
     catch (err) {
         res.status(400).json({ error: err.message || err });
