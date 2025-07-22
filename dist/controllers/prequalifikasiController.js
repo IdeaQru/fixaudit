@@ -16,48 +16,58 @@ const createPrequalification = async (req, res) => {
             ID_Auditor: new mongoose_1.default.Types.ObjectId(ID_Auditor)
         };
         // Cek apakah dokumen sudah ada
-        const existingPrequal = await Prequalifikasi_1.default.findOne(filter);
+        let existingPrequal = await Prequalifikasi_1.default.findOne(filter);
         if (!existingPrequal) {
-            // Buat baru jika belum ada
-            const prequal = new Prequalifikasi_1.default({
+            // 🆕 CREATE - Buat dokumen baru
+            const newPrequal = new Prequalifikasi_1.default({
                 Auditee,
                 ID_Perusahaan,
                 ID_Auditor,
                 Penanggung_Jawab,
-                Jawaban: Array.isArray(Jawaban) ? Jawaban : [Jawaban],
+                Tanggal_Pengisian: Tanggal_Pengisian || new Date(),
                 Status: Status || 'Draft',
-                Tanggal_Pengisian: Tanggal_Pengisian || new Date()
+                Jawaban: Array.isArray(Jawaban) ? Jawaban : [Jawaban]
             });
-            await prequal.save();
-            return res.status(201).json(prequal);
+            const savedPrequal = await newPrequal.save();
+            return res.status(201).json(savedPrequal);
         }
         else {
-            // Update hanya jawaban menggunakan MongoDB aggregation
+            // 🔄 UPDATE/ADD - Dokumen sudah ada, update jawaban
             const jawabanArr = Array.isArray(Jawaban) ? Jawaban : [Jawaban];
-            for (const jwb of jawabanArr) {
-                const kriteria = jwb.Kriteria || jwb.Kode;
-                // Update jika kriteria sudah ada, atau add jika belum ada
-                await Prequalifikasi_1.default.updateOne({
-                    ...filter,
-                    "Jawaban.Kriteria": kriteria
-                }, {
-                    $set: { "Jawaban.$": jwb }
-                });
-                // Jika tidak ada yang terupdate, berarti kriteria belum ada, jadi add
-                const updated = await Prequalifikasi_1.default.findOne({
-                    ...filter,
-                    "Jawaban.Kriteria": kriteria
-                });
-                if (!updated) {
-                    await Prequalifikasi_1.default.updateOne(filter, { $push: { Jawaban: jwb } });
+            for (const newJawaban of jawabanArr) {
+                const kriteriaId = new mongoose_1.default.Types.ObjectId(newJawaban.Kriteria);
+                // Cek apakah jawaban dengan Kriteria ini sudah ada
+                const jawabanIndex = existingPrequal.Jawaban.findIndex(j => j.Kriteria.toString() === kriteriaId.toString());
+                if (jawabanIndex >= 0) {
+                    // 🔄 UPDATE - Jawaban sudah ada, replace
+                    await Prequalifikasi_1.default.updateOne({
+                        ...filter,
+                        "Jawaban._id": existingPrequal.Jawaban[jawabanIndex]._id
+                    }, {
+                        $set: {
+                            "Jawaban.$": {
+                                ...newJawaban,
+                                _id: existingPrequal.Jawaban[jawabanIndex]._id // Keep existing _id
+                            }
+                        }
+                    });
+                }
+                else {
+                    // ➕ ADD - Jawaban belum ada, tambah baru
+                    await Prequalifikasi_1.default.updateOne(filter, {
+                        $push: {
+                            Jawaban: newJawaban
+                        }
+                    });
                 }
             }
-            // Ambil data terbaru untuk response
+            // Ambil data terbaru setelah update
             const updatedPrequal = await Prequalifikasi_1.default.findOne(filter);
-            return res.status(201).json(updatedPrequal);
+            return res.status(200).json(updatedPrequal);
         }
     }
     catch (err) {
+        console.error('Error in createPrequalification:', err);
         res.status(400).json({ error: err.message || err });
     }
 };
