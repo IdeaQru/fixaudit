@@ -5,94 +5,56 @@ import Auditee from "../models/Auditee";
 import mongoose from 'mongoose';
 
 
-export const createPrequalification = async (req: Request, res: Response) => {
+export const createPrequalification = async (req:Request, res:Response) => {
   try {
-    const { 
-      Auditee, 
-      ID_Perusahaan, 
-      ID_Auditor, 
-      Jawaban, 
-      Status, 
-      Penanggung_Jawab, 
-      Tanggal_Pengisian 
-    } = req.body;
+    const { Auditee, ID_Perusahaan, ID_Auditor, Jawaban, Status, Penanggung_Jawab,Tanggal_Pengisian } = req.body;
 
-    const filter = {
+    // Cek apakah sudah ada prequalification untuk kombinasi ini
+    let prequal = await Prequalification.findOne({
       Auditee: new mongoose.Types.ObjectId(Auditee),
       ID_Perusahaan: new mongoose.Types.ObjectId(ID_Perusahaan),
-      ID_Auditor: new mongoose.Types.ObjectId(ID_Auditor)
-    };
+      ID_Auditor: new mongoose.Types.ObjectId(ID_Auditor),
+      Penanggung_Jawab: new mongoose.Types.ObjectId(Penanggung_Jawab),
+    });
 
-    // Cek apakah dokumen sudah ada
-    let existingPrequal = await Prequalification.findOne(filter);
-
-    if (!existingPrequal) {
-      // 🆕 CREATE - Buat dokumen baru
-      const newPrequal = new Prequalification({
+    if (!prequal) {
+      // Jika belum ada, buat baru
+      prequal = new Prequalification({
         Auditee,
         ID_Perusahaan,
         ID_Auditor,
         Penanggung_Jawab,
-        Tanggal_Pengisian: Tanggal_Pengisian || new Date(),
+        Jawaban: Array.isArray(Jawaban) ? Jawaban : [Jawaban],
         Status: Status || 'Draft',
-        Jawaban: Array.isArray(Jawaban) ? Jawaban : [Jawaban]
+        Tanggal_Pengisian: Tanggal_Pengisian || new Date()
       });
-      
-      const savedPrequal = await newPrequal.save();
-      return res.status(201).json(savedPrequal);
     } else {
-      // 🔄 UPDATE/ADD - Dokumen sudah ada, update jawaban
-      const jawabanArr = Array.isArray(Jawaban) ? Jawaban : [Jawaban];
-      
-      for (const newJawaban of jawabanArr) {
-        const kriteriaId = new mongoose.Types.ObjectId(newJawaban.Kriteria);
-        
-        // Cek apakah jawaban dengan Kriteria ini sudah ada
-        const jawabanIndex = existingPrequal.Jawaban.findIndex(
-          j => j.Kriteria.toString() === kriteriaId.toString()
-        );
-
-        if (jawabanIndex >= 0) {
-          // 🔄 UPDATE - Jawaban sudah ada, replace
-          await Prequalification.updateOne(
-            { 
-              ...filter,
-              "Jawaban._id": existingPrequal.Jawaban[jawabanIndex]._id 
-            },
-            { 
-              $set: { 
-                "Jawaban.$": {
-                  ...newJawaban,
-                  _id: existingPrequal.Jawaban[jawabanIndex]._id // Keep existing _id
-                }
-              } 
-            }
+      // Jika sudah ada, update atau tambahkan jawaban
+      if (Jawaban) {
+        const jawabanArr = Array.isArray(Jawaban) ? Jawaban : [Jawaban];
+        jawabanArr.forEach((jwb) => {
+          // Cek apakah kriteria sudah ada di array Jawaban
+          const idx = prequal.Jawaban.findIndex(j =>
+            (j.Kriteria?.toString?.() || j.Kode) === (jwb.Kriteria || jwb.Kode)
           );
-        } else {
-          // ➕ ADD - Jawaban belum ada, tambah baru
-          await Prequalification.updateOne(
-            filter,
-            { 
-              $push: { 
-                Jawaban: newJawaban 
-              } 
-            }
-          );
-        }
+          if (idx >= 0) {
+            prequal.Jawaban[idx] = jwb; // Replace
+          } else {
+            prequal.Jawaban.push(jwb); // Add
+          }
+        });
       }
-
-      // Ambil data terbaru setelah update
-      const updatedPrequal = await Prequalification.findOne(filter);
-      return res.status(200).json(updatedPrequal);
+      // (Opsional) Update status/tanggal jika ingin
+      if (Status) prequal.Status = Status;
+      if (Tanggal_Pengisian) prequal.Tanggal_Pengisian = Tanggal_Pengisian;
     }
 
+    await prequal.save();
+    res.status(201).json(prequal);
   } catch (err) {
-    console.error('Error in createPrequalification:', err);
     res.status(400).json({ error: err.message || err });
   }
 };
-
-
 
 export const getPrequalificationByPerusahaan = async (req, res) => {
   try {
