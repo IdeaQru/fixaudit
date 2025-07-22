@@ -10,50 +10,42 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const createPrequalification = async (req, res) => {
     try {
         const { Auditee, ID_Perusahaan, ID_Auditor, Jawaban, Status, Penanggung_Jawab, Tanggal_Pengisian } = req.body;
-        // Cek apakah sudah ada prequalification untuk kombinasi ini
-        let prequal = await Prequalifikasi_1.default.findOne({
-            Auditee: new mongoose_1.default.Types.ObjectId(Auditee),
-            ID_Perusahaan: new mongoose_1.default.Types.ObjectId(ID_Perusahaan),
-            ID_Auditor: new mongoose_1.default.Types.ObjectId(ID_Auditor),
-            Penanggung_Jawab: new mongoose_1.default.Types.ObjectId(Penanggung_Jawab),
-        });
-        if (!prequal) {
-            // Jika belum ada, buat baru
-            prequal = new Prequalifikasi_1.default({
+        // ✅ Filter berdasarkan Penanggung_Jawab (bukan kombinasi lain)
+        const filter = {
+            Penanggung_Jawab: new mongoose_1.default.Types.ObjectId(Penanggung_Jawab)
+        };
+        // Cek apakah sudah ada dokumen dengan Penanggung_Jawab yang sama
+        let existingPrequal = await Prequalifikasi_1.default.findOne(filter);
+        if (!existingPrequal) {
+            // CREATE - Buat dokumen baru
+            const newPrequal = new Prequalifikasi_1.default({
                 Auditee,
                 ID_Perusahaan,
                 ID_Auditor,
                 Penanggung_Jawab,
-                Jawaban: Array.isArray(Jawaban) ? Jawaban : [Jawaban],
+                Tanggal_Pengisian: Tanggal_Pengisian || new Date(),
                 Status: Status || 'Draft',
-                Tanggal_Pengisian: Tanggal_Pengisian || new Date()
+                Jawaban: Array.isArray(Jawaban) ? Jawaban : [Jawaban]
             });
+            const savedPrequal = await newPrequal.save();
+            return res.status(201).json(savedPrequal);
         }
         else {
-            // Jika sudah ada, update atau tambahkan jawaban
-            if (Jawaban) {
-                const jawabanArr = Array.isArray(Jawaban) ? Jawaban : [Jawaban];
-                jawabanArr.forEach((jwb) => {
-                    // Cek apakah kriteria sudah ada di array Jawaban
-                    const idx = prequal.Jawaban.findIndex(j => (j.Kriteria?.toString?.() || j.Kode) === (jwb.Kriteria || jwb.Kode));
-                    if (idx >= 0) {
-                        prequal.Jawaban[idx] = jwb; // Replace
-                    }
-                    else {
-                        prequal.Jawaban.push(jwb); // Add
-                    }
+            // UPDATE/ADD - Push/update jawaban ke dokumen yang sudah ada
+            const jawabanArr = Array.isArray(Jawaban) ? Jawaban : [Jawaban];
+            for (const newJawaban of jawabanArr) {
+                // Push jawaban baru ke array
+                await Prequalifikasi_1.default.updateOne(filter, {
+                    $push: { Jawaban: newJawaban }
                 });
             }
-            // (Opsional) Update status/tanggal jika ingin
-            if (Status)
-                prequal.Status = Status;
-            if (Tanggal_Pengisian)
-                prequal.Tanggal_Pengisian = Tanggal_Pengisian;
+            // Ambil data terbaru
+            const updatedPrequal = await Prequalifikasi_1.default.findOne(filter);
+            return res.status(200).json(updatedPrequal);
         }
-        await prequal.save();
-        res.status(201).json(prequal);
     }
     catch (err) {
+        console.error('Error in createPrequalification:', err);
         res.status(400).json({ error: err.message || err });
     }
 };
