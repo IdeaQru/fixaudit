@@ -5,55 +5,50 @@ import Auditee from "../models/Auditee";
 import mongoose from 'mongoose';
 
 
-export const createPrequalification = async (req:Request, res:Response) => {
+export const createPrequalification = async (req: Request, res: Response) => {
   try {
-    const { Auditee, ID_Perusahaan, ID_Auditor, Jawaban, Status, Penanggung_Jawab,Tanggal_Pengisian } = req.body;
+    const { 
+      Auditee, 
+      ID_Perusahaan, 
+      ID_Auditor, 
+      Jawaban, 
+      Status, 
+      Penanggung_Jawab, 
+      Tanggal_Pengisian 
+    } = req.body;
 
-    // Cek apakah sudah ada prequalification untuk kombinasi ini
-    let prequal = await Prequalification.findOne({
-      Auditee: new mongoose.Types.ObjectId(Auditee),
-      ID_Perusahaan: new mongoose.Types.ObjectId(ID_Perusahaan),
-      ID_Auditor: new mongoose.Types.ObjectId(ID_Auditor)
-    });
-
-    if (!prequal) {
-      // Jika belum ada, buat baru
-      prequal = new Prequalification({
-        Auditee,
-        ID_Perusahaan,
-        ID_Auditor,
-        Penanggung_Jawab,
-        Jawaban: Array.isArray(Jawaban) ? Jawaban : [Jawaban],
-        Status: Status || 'Draft',
-        Tanggal_Pengisian: Tanggal_Pengisian || new Date()
-      });
-    } else {
-      // Jika sudah ada, update atau tambahkan jawaban
-      if (Jawaban) {
-        const jawabanArr = Array.isArray(Jawaban) ? Jawaban : [Jawaban];
-        jawabanArr.forEach((jwb) => {
-          // Cek apakah kriteria sudah ada di array Jawaban
-          const idx = prequal.Jawaban.findIndex(j =>
-            (j.Kriteria?.toString?.() || j.Kode) === (jwb.Kriteria || jwb.Kode)
-          );
-          if (idx >= 0) {
-            prequal.Jawaban[idx] = jwb; // Replace
-          } else {
-            prequal.Jawaban.push(jwb); // Add
-          }
-        });
+    // Gunakan findOneAndUpdate dengan upsert untuk create atau update sekaligus
+    const prequal = await Prequalification.findOneAndUpdate(
+      {
+        Auditee: new mongoose.Types.ObjectId(Auditee),
+        ID_Perusahaan: new mongoose.Types.ObjectId(ID_Perusahaan),
+        ID_Auditor: new mongoose.Types.ObjectId(ID_Auditor)
+      },
+      {
+        $set: {
+          Auditee,
+          ID_Perusahaan,
+          ID_Auditor,
+          Penanggung_Jawab,
+          Status: Status || 'Draft',
+          Tanggal_Pengisian: Tanggal_Pengisian || new Date(),
+          // Langsung replace seluruh array Jawaban dengan data baru
+          Jawaban: Array.isArray(Jawaban) ? Jawaban : [Jawaban]
+        }
+      },
+      {
+        new: true, // Return updated document
+        upsert: true, // Create if not exists
+        runValidators: true // Run schema validations
       }
-      // (Opsional) Update status/tanggal jika ingin
-      if (Status) prequal.Status = Status;
-      if (Tanggal_Pengisian) prequal.Tanggal_Pengisian = Tanggal_Pengisian;
-    }
+    );
 
-    await prequal.save();
     res.status(201).json(prequal);
   } catch (err) {
     res.status(400).json({ error: err.message || err });
   }
 };
+
 
 export const getPrequalificationByPerusahaan = async (req, res) => {
   try {
